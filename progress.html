@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Progress</title>
+  <link rel="stylesheet" href="progress.css">
+  <link href="https://fonts.googleapis.com/css2?family=Edu+QLD+Hand:wght@400..700&family=Orbitron:wght@400..900&display=swap" rel="stylesheet">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>PERSONAL TRAINER</h1>
+    <nav>
+      <a href="uui.html">WORKOUT</a>
+      <a href="calendar.html">CALENDAR</a>
+      <a href="progress.html">PROGRESS</a>
+      <a href="profile.html">PROFILE</a>
+      <button id="logoutBtn" style="background: none; border: none; color: white; cursor: pointer; font-family: 'Orbitron'; font-weight: bold;">LOGOUT</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="goal">
+      <h2>Your Goal</h2>
+      <p>-5KG. Complete 13 workouts this month</p>
+    </section>
+
+    <section class="progress-bar">
+      <h3>Progress</h3>
+      <div class="bar-wrapper">
+        <div class="bar-fill" id="progressBar"></div>
+      </div>
+      <p id="progressText">0% completed (0/13)</p>
+    </section>
+
+    <section class="stats">
+      <div class="stat-card">
+        <h4 id="workoutsCount">0</h4>
+        <p>Workouts</p>
+      </div>
+      <div class="stat-card">
+        <h4 id="streakCount">0</h4>
+        <p>Days Streak</p>
+      </div>
+      <div class="stat-card">
+        <h4 id="goalPercent">0%</h4>
+        <p>Goal Progress</p>
+      </div>
+    </section>
+
+    <section class="quote">
+      <p>"Progress is progress, no matter how small!"</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; TRAIN HARD. LIVE BETTER.</p>
+  </footer>
+
+  <script>
+     // Конфигурация Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1stPt6qkiFd7qbsCFiQbVvEaXVI5nEXY",
+      authDomain: "coach-c8230.firebaseapp.com",
+      projectId: "coach-c8230",
+      storageBucket: "coach-c8230.firebasestorage.app",
+      messagingSenderId: "1039652151627",
+      appId: "1:1039652151627:web:f8a097a5182c5fbc2f08ce",
+      measurementId: "G-Q1PGPW764N"
+    };
+
+    // Инициализация Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Проверка аутентификации
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        loadWorkouts(user.uid);
+      }
+    });
+
+    // Загрузка тренировок
+    async function loadWorkouts(userId) {
+      try {
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        const snapshot = await db.collection("users")
+          .doc(userId)
+          .collection("workouts")
+          .where("createdAt", ">=", firstDayOfMonth)
+          .get();
+
+        const workouts = [];
+        const workoutDates = new Set(); // Для хранения уникальных дат тренировок
+        snapshot.forEach(doc => {
+          workouts.push(doc.data());
+          // Преобразуем дату в строку формата 'YYYY-MM-DD' для сравнения
+          const workoutDate = doc.data().createdAt.toDate();
+          const dateStr = workoutDate.toISOString().split('T')[0];
+          workoutDates.add(dateStr);
+        });
+
+        // Получаем массив дат и сортируем его
+        const sortedDates = Array.from(workoutDates).sort();
+        
+        // Вычисляем текущую серию
+        const currentStreak = calculateCurrentStreak(sortedDates);
+        
+        updateProgress(workouts.length, currentStreak);
+      } catch (error) {
+        console.error("Error loading workouts:", error);
+      }
+    }
+
+    // Функция для вычисления текущей серии дней с тренировками
+    function calculateCurrentStreak(dates) {
+      if (dates.length === 0) return 0;
+      
+      // Сортируем даты по убыванию (от новых к старым)
+      const sorted = [...dates].sort((a, b) => new Date(b) - new Date(a));
+      
+      let streak = 0;
+      const oneDay = 24 * 60 * 60 * 1000; // Один день в миллисекундах
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Проверяем, была ли тренировка сегодня
+      if (sorted[0] === today) {
+        streak = 1;
+      } else {
+        return 0; // Если сегодня не было тренировки, серия прервана
+      }
+      
+      // Проверяем предыдущие дни
+      for (let i = 1; i < sorted.length; i++) {
+        const prevDate = new Date(sorted[i-1]);
+        const currentDate = new Date(sorted[i]);
+        const diffDays = Math.round(Math.abs((prevDate - currentDate) / oneDay));
+        
+        if (diffDays === 1) {
+          streak++;
+        } else {
+          break; // Серия прервана
+        }
+      }
+      
+      return streak;
+    }
+
+    // Обновление прогресса
+    function updateProgress(completedWorkouts, streak) {
+      const GOAL = 13;
+      const percentage = Math.min(Math.round((completedWorkouts / GOAL) * 100), 100);
+      
+      // Обновляем ползунок
+      document.getElementById("progressBar").style.width = `${percentage}%`;
+      
+      // Обновляем текст прогресса
+      document.getElementById("progressText").textContent = 
+        `${percentage}% completed (${completedWorkouts}/${GOAL})`;
+      
+      // Обновляем статистику
+      document.getElementById("workoutsCount").textContent = completedWorkouts;
+      document.getElementById("goalPercent").textContent = `${percentage}%`;
+      document.getElementById("streakCount").textContent = streak;
+    }
+
+    // Выход из системы
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    });
+  </script>
+</body>
+</html>
