@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Activity calendar</title>
+  <link rel="stylesheet" href="calendar.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>PERSONAL TRAINER</h1>
+    <nav>
+      <a href="uui.html">WORKOUT</a>
+      <a href="calendar.html">CALENDAR</a>
+      <a href="progress.html">PROGRESS</a>
+      <a href="profile.html">PROFILE</a>
+      <button id="logoutBtn" style="background: none; border: none; color: white; cursor: pointer; font-family: 'Orbitron'; font-weight: bold;">LOGOUT</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="calendar-controls">
+      <div class="calendar-nav">
+        <button id="prevMonth">&larr;</button>
+        <span id="currentMonth">June 2025</span>
+        <button id="nextMonth">&rarr;</button>
+      </div>
+      <div class="filters">
+        <select id="workoutTypeFilter">
+          <option value="all">All workouts</option>
+          <option value="Cardio">Cardio</option>
+          <option value="Strength">Strength</option>
+          <option value="Stretching">Stretching</option>
+          <option value="Yoga">Yoga</option>
+          <option value="Functional">Functional</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="calendar-grid" id="calendarGrid">
+      <!-- Дни будут заполняться через JavaScript -->
+    </section>
+
+    <!-- Модальное окно с информацией о тренировке -->
+    <div id="workoutModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3 id="modalWorkoutDate"></h3>
+        <div id="modalWorkoutInfo"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; TRAIN HARD. LIVE BETTER.</p>
+  </footer>
+
+  <script>
+    // Конфигурация Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1stPt6qkiFd7qbsCFiQbVvEaXVI5nEXY",
+      authDomain: "coach-c8230.firebaseapp.com",
+      projectId: "coach-c8230",
+      storageBucket: "coach-c8230.firebasestorage.app",
+      messagingSenderId: "1039652151627",
+      appId: "1:1039652151627:web:f8a097a5182c5fbc2f08ce",
+      measurementId: "G-Q1PGPW764N"
+    };
+
+    // Инициализация Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentMonth = new Date().getMonth();
+    let currentYear = new Date().getFullYear();
+    let workouts = [];
+
+    // Проверка аутентификации
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        loadWorkouts(user.uid);
+      }
+    });
+
+    // Загрузка тренировок из Firestore
+    async function loadWorkouts(userId) {
+      try {
+        const snapshot = await db.collection("users").doc(userId).collection("workouts").get();
+        workouts = [];
+        snapshot.forEach(doc => {
+          workouts.push({ id: doc.id, ...doc.data() });
+        });
+        renderCalendar();
+      } catch (error) {
+        console.error("Ошибка загрузки тренировок:", error);
+      }
+    }
+
+    // Рендер календаря
+    function renderCalendar() {
+      const calendarGrid = document.getElementById("calendarGrid");
+      calendarGrid.innerHTML = "";
+
+      // Устанавливаем заголовок месяца
+      document.getElementById("currentMonth").textContent = 
+        `${new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' })} ${currentYear}`;
+
+      // Получаем первый день месяца и сколько дней в предыдущем месяце
+      const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+      // Создаем дни предыдущего месяца (если месяц начинается не с понедельника)
+      for (let i = 0; i < firstDayOfMonth; i++) {
+        const dayElement = document.createElement("div");
+        dayElement.className = "day other-month";
+        dayElement.innerHTML = `<span>${daysInPrevMonth - firstDayOfMonth + i + 1}</span>`;
+        calendarGrid.appendChild(dayElement);
+      }
+
+      // Создаем дни текущего месяца
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayElement = document.createElement("div");
+        dayElement.className = "day";
+        dayElement.innerHTML = `<span>${day}</span>`;
+
+        // Форматируем дату для сравнения
+        const formattedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // Проверяем, есть ли тренировки в этот день
+        const dayWorkouts = workouts.filter(workout => workout.date === formattedDate);
+
+        if (dayWorkouts.length > 0) {
+          dayElement.classList.add("has-workout");
+          
+          // Добавляем индикатор тренировки
+          const dot = document.createElement("div");
+          dot.className = "dot";
+          dayElement.appendChild(dot);
+          
+          // Добавляем обработчик клика
+          dayElement.addEventListener("click", () => showWorkoutDetails(formattedDate, dayWorkouts));
+        }
+
+        // Подсвечиваем текущий день
+        const today = new Date();
+        if (day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()) {
+          dayElement.classList.add("today");
+        }
+
+        calendarGrid.appendChild(dayElement);
+      }
+
+      // Создаем дни следующего месяца (чтобы заполнить сетку)
+      const totalCells = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7;
+      const remainingCells = totalCells - (firstDayOfMonth + daysInMonth);
+      
+      for (let i = 1; i <= remainingCells; i++) {
+        const dayElement = document.createElement("div");
+        dayElement.className = "day other-month";
+        dayElement.innerHTML = `<span>${i}</span>`;
+        calendarGrid.appendChild(dayElement);
+      }
+    }
+
+    // Показать детали тренировки
+    function showWorkoutDetails(date, workouts) {
+      const modal = document.getElementById("workoutModal");
+      const modalDate = document.getElementById("modalWorkoutDate");
+      const modalInfo = document.getElementById("modalWorkoutInfo");
+
+      const dateObj = new Date(date);
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      modalDate.textContent = dateObj.toLocaleDateString('en-US', options);
+      
+      modalInfo.innerHTML = workouts.map(workout => `
+        <div class="workout-detail">
+          <p><strong>Type:</strong> ${workout.type}</p>
+          <p><strong>Time:</strong> ${workout.time}</p>
+          <p><strong>Note:</strong> ${workout.note || "No notes"}</p>
+        </div>
+      `).join("");
+
+      modal.style.display = "block";
+    }
+
+    // Навигация по месяцам
+    document.getElementById("prevMonth").addEventListener("click", () => {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      renderCalendar();
+    });
+
+    document.getElementById("nextMonth").addEventListener("click", () => {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      renderCalendar();
+    });
+
+    // Фильтрация по типу тренировки
+    document.getElementById("workoutTypeFilter").addEventListener("change", (e) => {
+      const type = e.target.value;
+      if (type === "all") {
+        renderCalendar();
+      } else {
+        const filtered = workouts.filter(workout => workout.type === type);
+        renderCalendar(filtered);
+      }
+    });
+
+    // Закрыть модальное окно
+    document.querySelector(".close").addEventListener("click", () => {
+      document.getElementById("workoutModal").style.display = "none";
+    });
+
+    // Закрыть модальное окно при клике вне его
+    window.addEventListener("click", (e) => {
+      if (e.target === document.getElementById("workoutModal")) {
+        document.getElementById("workoutModal").style.display = "none";
+      }
+    });
+
+    // Выход из системы
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    });
+  </script>
+</body>
+</html>
