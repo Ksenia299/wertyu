@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Profile</title>
+  <link rel="stylesheet" href="profile.css">
+  <link href="https://fonts.googleapis.com/css2?family=Edu+QLD+Hand:wght@400..700&family=Orbitron:wght@400..900&display=swap" rel="stylesheet">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div>
+    <header>
+      <h1>PERSONAL TRAINER</h1>
+      <nav>
+        <a href="uui.html">WORKOUT</a>
+        <a href="calendar.html">CALENDAR</a>
+        <a href="progress.html">PROGRESS</a>
+        <a href="profile.html">PROFILE</a>
+        <button id="logoutBtn" style="background: none; border: none; color: white; cursor: pointer; font-family: 'Orbitron'; font-weight: bold;">LOGOUT</button>
+      </nav>
+    </header>
+
+    <main>
+      <h2>HELLO!</h2>
+      <img src="dacee42504d0442a55e70643641a41ef.jpg" alt="avatar" />
+     
+      <section class="stats">
+        <div class="stat-card">
+          <h4 id="workoutsCount">0</h4>
+          <p>Workouts</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="streakCount">0</h4>
+          <p>Days Streak</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="goalPercent">0%</h4>
+          <p>Goal Reached</p>
+        </div>
+      </section>
+
+      <button id="addWorkoutBtn" style="margin-top: 15px;">Add workout</button>
+      
+      <section class="about">
+        <h3>About You</h3>
+        <p>You are focused on maintaining your shape. Keep tracking your progress and stay motivated!</p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Конфигурация Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1stPt6qkiFd7qbsCFiQbVvEaXVI5nEXY",
+      authDomain: "coach-c8230.firebaseapp.com",
+      projectId: "coach-c8230",
+      storageBucket: "coach-c8230.firebasestorage.app",
+      messagingSenderId: "1039652151627",
+      appId: "1:1039652151627:web:f8a097a5182c5fbc2f08ce",
+      measurementId: "G-Q1PGPW764N"
+    };
+
+    // Инициализация Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Проверка аутентификации
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        console.log("User is signed in:", user.uid);
+        loadWorkouts(user.uid);
+      }
+    });
+
+    // Загрузка тренировок
+    async function loadWorkouts(userId) {
+      try {
+        console.log("Loading workouts for user:", userId);
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        const snapshot = await db.collection("users")
+          .doc(userId)
+          .collection("workouts")
+          .where("createdAt", ">=", firstDayOfMonth)
+          .get();
+
+        const workouts = [];
+        const workoutDates = new Set();
+        
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          workouts.push(data);
+          if (data.createdAt) {
+            const workoutDate = data.createdAt.toDate();
+            const dateStr = workoutDate.toISOString().split('T')[0];
+            workoutDates.add(dateStr);
+            console.log("Found workout on:", dateStr);
+          }
+        });
+
+        console.log("Total workouts this month:", workouts.length);
+        console.log("Unique workout dates:", workoutDates);
+
+        const sortedDates = Array.from(workoutDates).sort();
+        const currentStreak = calculateCurrentStreak(sortedDates);
+        
+        console.log("Current streak:", currentStreak);
+        updateStats(workouts.length, currentStreak);
+      } catch (error) {
+        console.error("Error loading workouts:", error);
+      }
+    }
+
+    // Функция для вычисления текущей серии дней с тренировками
+    function calculateCurrentStreak(dates) {
+      if (dates.length === 0) {
+        console.log("No workout dates found");
+        return 0;
+      }
+      
+      const sorted = [...dates].sort((a, b) => new Date(b) - new Date(a));
+      console.log("Sorted dates:", sorted);
+      
+      let streak = 0;
+      const oneDay = 24 * 60 * 60 * 1000;
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - oneDay).toISOString().split('T')[0];
+      
+      console.log("Today:", today);
+      console.log("Yesterday:", yesterday);
+
+      // Проверяем сегодняшнюю тренировку
+      if (sorted[0] === today) {
+        streak = 1;
+        console.log("Today's workout found, streak started");
+      } else {
+        console.log("No workout today, streak is 0");
+        return 0;
+      }
+      
+      // Проверяем предыдущие дни
+      for (let i = 1; i < sorted.length; i++) {
+        const prevDate = new Date(sorted[i-1]);
+        const currentDate = new Date(sorted[i]);
+        const diffDays = Math.round(Math.abs((prevDate - currentDate) / oneDay));
+        
+        console.log(`Checking dates: ${sorted[i-1]} vs ${sorted[i]}, diff: ${diffDays} days`);
+        
+        if (diffDays === 1) {
+          streak++;
+          console.log("Streak increased to:", streak);
+        } else if (diffDays === 0) {
+          // Та же дата, пропускаем
+          continue;
+        } else {
+          console.log("Streak broken, gap of", diffDays, "days");
+          break;
+        }
+      }
+      
+      console.log("Final streak:", streak);
+      return streak;
+    }
+
+    // Обновление статистики
+    function updateStats(completedWorkouts, streak) {
+      const GOAL = 13;
+      const percentage = Math.min(Math.round((completedWorkouts / GOAL) * 100), 100);
+      
+      console.log("Updating stats:", {
+        workouts: completedWorkouts,
+        streak: streak,
+        percentage: percentage
+      });
+      
+      document.getElementById("workoutsCount").textContent = completedWorkouts;
+      document.getElementById("streakCount").textContent = streak;
+      document.getElementById("goalPercent").textContent = `${percentage}%`;
+    }
+
+    // Обработчик кнопки выхода
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    });
+
+    // Обработчик кнопки добавления тренировки
+    document.getElementById('addWorkoutBtn').addEventListener('click', () => {
+      window.location.href = "uui.html";
+    });
+  </script>
+</body>
+</html>
