@@ -124,11 +124,6 @@ footer {
 }
 
 /* Анимация для ползунка при загрузке */
-@keyframes fillProgress {
-  from { width: 0%; }
-  to { width: var(--progress-width); }
-}
-
-#progressBar {
-  animation: fillProgress 1s ease-out forwards;
+.bar-fill {
+  width: 0%;
 }
