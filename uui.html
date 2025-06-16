@@ -40,14 +40,14 @@
       <h2>Creating a training plan</h2>
       <form id="workoutForm" class="card">
         <div>
-          <label>Weekday:</label>
+         <label for="date">Date:</label>
+         <input type="date" id="date" name="date" required />
+         <span id="weekdayDisplay"></span>
           <div>
-  <label for="date">Date:</label>
-  <input type="date" id="date" name="date" required />
-  <span id="weekdayDisplay"></span>
+  
 </div>
         </div>
-
+  
         <div>
           <label for="type">Type of training:</label>
           <select id="type" name="type">
@@ -128,7 +128,7 @@ document.getElementById('workoutForm').addEventListener('submit', async (e) => {
 
   const date = document.getElementById('date').value;
   if (!date) {
-    showMessage("Выберите дату", "red");
+    showMessage("Choose date", "red");
     return;
   }
 
@@ -148,12 +148,12 @@ document.getElementById('workoutForm').addEventListener('submit', async (e) => {
 
     await db.collection("users").doc(user.uid).collection("workouts").add(newWorkout);
     
-    showMessage("Тренировка успешно сохранена!", "green");
+    showMessage("The training has been successfully saved!", "green");
     document.getElementById('workoutForm').reset();
     document.getElementById('weekdayDisplay').textContent = '';
   } catch (error) {
-    console.error("Ошибка сохранения тренировки:", error);
-    showMessage("Ошибка при сохранении тренировки", "red");
+    console.error("Error saving training:", error);
+    showMessage("Error saving training", "red");
   }
 });
   </script>
