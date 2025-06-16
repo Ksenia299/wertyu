@@ -156,6 +156,17 @@ document.getElementById('workoutForm').addEventListener('submit', async (e) => {
     showMessage("Error saving training", "red");
   }
 });
+     function showMessage(text, color) {
+    const messageDiv = document.getElementById("message");
+    messageDiv.textContent = text;
+    messageDiv.style.color = color;
+    messageDiv.style.display = "block";
+
+    setTimeout(() => {
+      messageDiv.style.display = "none";
+      messageDiv.textContent = "";
+    }, 3000);
+  }
   </script>
 </body>
 </html>
